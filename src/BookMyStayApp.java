@@ -1,11 +1,5 @@
 import java.util.*;
 
-class InvalidBookingException extends Exception {
-    public InvalidBookingException(String message) {
-        super(message);
-    }
-}
-
 class RoomInventory {
     private Map<String, Integer> rooms = new HashMap<>();
 
@@ -18,61 +12,69 @@ class RoomInventory {
     public boolean isAvailable(String roomType) {
         return rooms.getOrDefault(roomType, 0) > 0;
     }
-}
 
-class BookingRequestQueue {
-    private Queue<String> queue = new LinkedList<>();
+    public void addRoom(String roomType) {
+        rooms.put(roomType, rooms.getOrDefault(roomType, 0) + 1);
+    }
 
-    public void addRequest(String request) {
-        queue.add(request);
+    public void bookRoom(String roomType) {
+        if (isAvailable(roomType)) {
+            rooms.put(roomType, rooms.get(roomType) - 1);
+        }
     }
 }
 
-class ReservationValidator {
-    public void validate(String guestName, String roomType, RoomInventory inventory)
-            throws InvalidBookingException {
+class CancellationService {
+    private Stack<String> releasedRoomIds;
+    private Map<String, String> reservationRoomTypeMap;
 
-        if (guestName == null || guestName.trim().isEmpty()) {
-            throw new InvalidBookingException("Guest name cannot be empty");
+    public CancellationService() {
+        releasedRoomIds = new Stack<>();
+        reservationRoomTypeMap = new HashMap<>();
+    }
+
+    public void registerBooking(String reservationId, String roomType) {
+        reservationRoomTypeMap.put(reservationId, roomType);
+    }
+
+    public void cancelBooking(String reservationId, RoomInventory inventory) {
+        if (!reservationRoomTypeMap.containsKey(reservationId)) {
+            System.out.println("Invalid reservation ID");
+            return;
         }
 
-        if (roomType == null || roomType.trim().isEmpty()) {
-            throw new InvalidBookingException("Room type cannot be empty");
-        }
+        String roomType = reservationRoomTypeMap.remove(reservationId);
+        inventory.addRoom(roomType);
+        releasedRoomIds.push(reservationId);
 
-        if (!inventory.isAvailable(roomType)) {
-            throw new InvalidBookingException("Selected room type not available");
+        System.out.println("Booking cancelled: " + reservationId);
+    }
+
+    public void showRollbackHistory() {
+        System.out.println("Rollback History:");
+        for (int i = releasedRoomIds.size() - 1; i >= 0; i--) {
+            System.out.println(releasedRoomIds.get(i));
         }
     }
 }
 
 public class BookMyStayApp {
     public static void main(String[] args) {
-        System.out.println("Booking Validation");
-
-        Scanner scanner = new Scanner(System.in);
-
         RoomInventory inventory = new RoomInventory();
-        ReservationValidator validator = new ReservationValidator();
-        BookingRequestQueue bookingQueue = new BookingRequestQueue();
+        CancellationService cancellationService = new CancellationService();
 
-        try {
-            System.out.print("Enter Guest Name: ");
-            String guestName = scanner.nextLine();
+        String res1 = "RES201";
+        String res2 = "RES202";
 
-            System.out.print("Enter Room Type (Standard/Deluxe/Suite): ");
-            String roomType = scanner.nextLine();
+        inventory.bookRoom("Standard");
+        inventory.bookRoom("Deluxe");
 
-            validator.validate(guestName, roomType, inventory);
+        cancellationService.registerBooking(res1, "Standard");
+        cancellationService.registerBooking(res2, "Deluxe");
 
-            bookingQueue.addRequest(guestName + " - " + roomType);
+        cancellationService.cancelBooking(res1, inventory);
+        cancellationService.cancelBooking(res2, inventory);
 
-            System.out.println("Booking request added successfully!");
-
-        } catch (InvalidBookingException e) {
-            System.out.println("Booking failed: " + e.getMessage());
-        } finally {
-            scanner.close();
-        }
+        cancellationService.showRollbackHistory();
     }
 }
